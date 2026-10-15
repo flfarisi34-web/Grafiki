@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Смены"/>
+<meta name="theme-color" content="#2C7873"/>
+<link rel="manifest" href="./manifest.json"/>
+<title>Смены: Бар & Кальян</title>
+
+<style>
+/* ── Reset & Base ─────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Rounded','SF Pro Text',system-ui,sans-serif;
+  background:#F8F9FA;
+  color:#1A1A2E;
+  overscroll-behavior:none;
+  min-height:100svh;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+::-webkit-scrollbar{display:none}
+
+/* ── Layout ───────────────────────────────────── */
+#app{display:flex;flex-direction:column;min-height:100svh}
+
+/* ── Header ───────────────────────────────────── */
+.header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(248,249,250,.92);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(0,0,0,.07);
+  padding:14px 18px 10px;
+  padding-top:calc(14px + env(safe-area-inset-top));
+}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.header-title{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#1A1A2E}
+.header-sub{font-size:12px;color:#8A9BBF;font-weight:500;margin-top:2px}
+
+/* ── Legend pills ─────────────────────────────── */
+.legend{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.legend-item{
+  display:flex;align-items:center;gap:5px;
+  background:#fff;border-radius:20px;
+  padding:5px 10px 5px 6px;
+  border:1px solid rgba(0,0,0,.07);
+  font-size:11px;font-weight:600;color:#444;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.legend-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.legend-dot.bar{background:#4A90D9}
+.legend-dot.hookah{background:#E8824A}
+.legend-dot.both{background:linear-gradient(to right,#4A90D9 50%,#E8824A 50%)}
+.legend-dot.off{background:#B0C4C0}
+
+/* ── Scroll area ──────────────────────────────── */
+.scroll-area{flex:1;overflow-y:auto;padding:14px 12px 120px}
+
+/* ── Month block ──────────────────────────────── */
+.month-block{
+  background:#fff;
+  border-radius:24px;
+  padding:16px 14px 20px;
+  margin-bottom:16px;
+  box-shadow:0 2px 16px rgba(0,0,0,.06);
+  border:1px solid rgba(0,0,0,.04);
+}
+.month-title{
+  text-align:center;
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:-.4px;
+  color:#1A1A2E;
+  margin-bottom:14px;
+}
+
+/* ── Weekday header ───────────────────────────── */
+.wday-row{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  margin-bottom:6px;
+}
+.wday-cell{
+  text-align:center;
+  font-size:11px;
+  font-weight:700;
+  color:#8A9BBF;
+  letter-spacing:.2px;
+  padding:3px 0;
+}
+.wday-cell.weekend{color:#C0776A}
+
+/* ── Days grid ────────────────────────────────── */
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px 2px}
+
+/* ── Day cell ─────────────────────────────────── */
+.day-cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  position:relative;cursor:pointer;
+  -webkit-user-select:none;user-select:none;
+}
+.day-cell.empty{cursor:default;pointer-events:none}
+
+/* The circle */
+.day-circle{
+  width:86%;aspect-ratio:1;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+  transition:transform .12s ease,opacity .12s ease;
+  font-size:clamp(12px,3.5vw,16px);
+  font-weight:600;
+  color:#1A1A2E;
+}
+.day-cell:active .day-circle{transform:scale(.82);opacity:.7}
+
+/* Unassigned */
+.day-circle.none{background:transparent;color:#1A1A2E}
+
+/* Bar only */
+.day-circle.bar{background:#4A90D9;color:#fff;font-weight:700}
+
+/* Hookah only */
+.day-circle.hookah{background:#E8824A;color:#fff;font-weight:700}
+
+/* Both — split circle */
+.day-circle.both{
+  background:transparent;
+  color:#fff;
+  font-weight:700;
+}
+.day-circle.both::before{
+  content:'';
+  position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(to right,#4A90D9 50%,#E8824A 50%);
+  z-index:0;
+}
+.day-circle.both .day-num{position:relative;z-index:1;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* Day off */
+.day-circle.off{background:#B0C4C0;color:#fff;font-weight:700}
+
+/* Today ring */
+.day-circle.today-ring{
+  box-shadow:0 0 0 2.5px #fff, 0 0 0 4px #E05252;
+}
+.day-circle.none.today-empty{
+  background:rgba(224,82,82,.12);
+  color:#E05252;
+  font-weight:800;
+}
+
+/* Day number span */
+.day-num{line-height:1;letter-spacing:-.3px}
+
+/* ── Shift type badges (small icons) ─────────── */
+.day-badges{
+  position:absolute;bottom:1px;
+  display:flex;gap:2px;justify-content:center;
+  width:100%;
+}
+.badge-dot{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.9)}
+
+/* ── Bottom stats bar ─────────────────────────── */
+.stats-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(248,249,250,.95);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(0,0,0,.08);
+  padding:12px 20px;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:100;
+}
+.stats-inner{display:flex;gap:8px;align-items:stretch}
+.stat-pill{
+  flex:1;background:#fff;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,.07);
+  padding:8px 10px;
+  text-align:center;
+  box-shadow:0 1px 6px rgba(0,0,0,.05);
+}
+.stat-val{font-size:22px;font-weight:900;letter-spacing:-1px;line-height:1}
+.stat-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8A9BBF;margin-top:2px}
+.stat-pill.bar-stat .stat-val{color:#4A90D9}
+.stat-pill.hookah-stat .stat-val{color:#E8824A}
+.stat-pill.off-stat .stat-val{color:#2C7873}
+.stat-pill.both-stat .stat-val{
+  background:linear-gradient(to right,#4A90D9,#E8824A);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+/* ── Year nav ─────────────────────────────────── */
+.year-nav{
+  display:flex;align-items:center;justify-content:center;
+  gap:16px;margin-bottom:6px;
+}
+.year-btn{
+  background:none;border:none;cursor:pointer;
+  font-size:22px;color:#8A9BBF;padding:4px 12px;
+  border-radius:10px;transition:background .12s,color .12s;
+}
+.year-btn:active{background:rgba(0,0,0,.08);color:#1A1A2E}
+.year-label{font-size:15px;font-weight:700;color:#8A9BBF}
+
+/* ── Modal overlay ────────────────────────────── */
+.modal-overlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:flex-end;justify-content:center;
+  animation:fadeIn .18s ease;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-overlay.closing{animation:fadeOut .2s ease forwards}
+@keyframes fadeOut{to{opacity:0}}
+
+.modal-sheet{
+  background:#fff;
+  border-radius:28px 28px 0 0;
+  padding:0 20px calc(28px + env(safe-area-inset-bottom));
+  width:100%;max-width:480px;
+  animation:slideUp .28s cubic-bezier(.25,1.4,.5,1);
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+.modal-sheet.closing{animation:slideDown .22s ease forwards}
+@keyframes slideDown{to{transform:translateY(110%)}}
+
+.sheet-handle{
+  width:44px;height:4px;background:#E0E4EA;border-radius:2px;
+  margin:12px auto 18px;
+}
+.sheet-date{
+  text-align:center;font-size:13px;color:#8A9BBF;font-weight:600;
+  margin-bottom:20px;letter-spacing:.1px;
+}
+
+/* ── Shift picker options ─────────────────────── */
+.shift-options{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.shift-opt{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;border-radius:18px;
+  border:2px solid transparent;cursor:pointer;
+  background:#F5F7FA;
+  transition:all .15s ease;
+  -webkit-user-select:none;user-select:none;
+}
+.shift-opt:active{transform:scale(.96);opacity:.8}
+.shift-opt.selected{background:#fff;border-color:currentColor;box-shadow:0 2px 14px rgba(0,0,0,.1)}
+.shift-opt.bar-opt{color:#4A90D9}
+.shift-opt.hookah-opt{color:#E8824A}
+.shift-opt.both-opt{color:#9B6DD0}
+.shift-opt.off-opt{color:#2C7873}
+.shift-opt.clear-opt{color:#8A9BBF}
+.opt-circle{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;position:relative;overflow:hidden;
+}
+.opt-circle.bar{background:#4A90D9}
+.opt-circle.hookah{background:#E8824A}
+.opt-circle.both{background:linear-gradient(to right,#4A90D9 50%,#E8824A 50%)}
+.opt-circle.off{background:#B0C4C0}
+.opt-circle.clear{background:#EAEEF3}
+.opt-text{}
+.opt-title{font-size:15px;font-weight:700}
+.opt-desc{font-size:11px;opacity:.65;margin-top:2px}
+
+.save-btn{
+  width:100%;padding:16px;border:none;border-radius:18px;
+  font-size:16px;font-weight:800;letter-spacing:-.2px;
+  color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,#4A90D9,#2C7873);
+  box-shadow:0 4px 18px rgba(44,120,115,.4);
+  transition:transform .12s,opacity .12s;
+}
+.save-btn:active{transform:scale(.97);opacity:.9}
+.save-btn:disabled{background:#D0D7E2;box-shadow:none;color:#fff;cursor:default}
+
+/* ── Toast ────────────────────────────────────── */
+.toast{
+  position:fixed;top:calc(env(safe-area-inset-top) + 70px);
+  left:50%;transform:translateX(-50%);
+  background:rgba(26,26,46,.9);color:#fff;
+  padding:10px 20px;border-radius:24px;
+  font-size:13px;font-weight:600;
+  white-space:nowrap;z-index:999;
+  animation:toastIn .25s ease;
+  pointer-events:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ═══ NEW: header bell ═══ */
+.header-top{align-items:flex-start}
+.bell-btn{
+  position:relative;background:#fff;border:1px solid rgba(0,0,0,.07);
+  width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;
+  box-shadow:0 1px 6px rgba(0,0,0,.08);flex-shrink:0;
+}
+.bell-btn:active{transform:scale(.92)}
+.bell-badge{
+  position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:9px;background:#E05252;color:#fff;font-size:11px;font-weight:800;
+  line-height:18px;text-align:center;
+}
+.bell-badge[hidden]{display:none}
+
+/* ═══ NEW: day mark ═══ */
+.day-circle .mark{
+  position:absolute;bottom:13%;left:50%;width:4px;height:4px;margin-left:-2px;
+  border-radius:50%;background:currentColor;opacity:.85;
+}
+
+/* ═══ NEW: sheet with tabs ═══ */
+.modal-sheet{display:flex;flex-direction:column;max-height:92svh}
+.sheet-date{margin-bottom:12px}
+.tabs{display:flex;gap:6px;background:#F0F2F6;border-radius:14px;padding:4px;margin-bottom:14px}
+.tab{
+  flex:1;border:none;background:transparent;border-radius:11px;padding:9px 4px;
+  font-size:12.5px;font-weight:700;color:#8A9BBF;cursor:pointer;font-family:inherit;
+}
+.tab.active{background:#fff;color:#1A1A2E;box-shadow:0 1px 6px rgba(0,0,0,.1)}
+.sheet-body{overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+.panel[hidden]{display:none}
+
+/* sections */
+.sec-card{background:#F5F7FA;border-radius:18px;padding:12px 12px 10px;margin-bottom:10px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sec-title{font-size:14px;font-weight:800;letter-spacing:-.2px}
+.icon-btn{background:none;border:none;font-size:15px;color:#8A9BBF;padding:6px 8px;cursor:pointer;border-radius:10px}
+.icon-btn:active{background:rgba(0,0,0,.08)}
+.sec-text,.text-in,.time-in,.new-in{
+  font-family:inherit;font-size:16px;color:#1A1A2E;background:#fff;
+  border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:9px 11px;outline:none;
+}
+.sec-text{width:100%;resize:vertical;min-height:70px;display:block}
+.sec-text:focus,.text-in:focus,.time-in:focus,.new-in:focus{border-color:#4A90D9}
+.item-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.item-row .text-in{flex:1;min-width:0}
+.item-row.done .text-in{text-decoration:line-through;opacity:.5}
+.item-row input[type=checkbox]{width:22px;height:22px;accent-color:#2C7873;flex-shrink:0}
+.time-in{width:104px;flex-shrink:0;padding:8px 6px}
+.add-link{
+  background:none;border:none;color:#4A90D9;font-weight:700;font-size:13px;
+  padding:6px 4px;cursor:pointer;font-family:inherit;
+}
+.new-sec{border:2px dashed #D0D7E2;border-radius:18px;padding:12px;margin-bottom:10px}
+.new-sec .row{display:flex;gap:8px;margin-top:8px}
+.new-in{width:100%}
+select.new-in{flex:1}
+.mini-btn{
+  border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;
+  color:#fff;background:#2C7873;cursor:pointer;font-family:inherit;
+}
+.mini-btn:active{opacity:.85}
+
+/* reminders */
+.hint{font-size:12px;color:#8A9BBF;line-height:1.4;margin-bottom:10px}
+.hint button{background:none;border:none;color:#4A90D9;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;padding:0}
+.empty{text-align:center;color:#8A9BBF;font-size:13px;padding:18px 0}
+.rem-row{
+  display:flex;align-items:center;gap:10px;background:#F5F7FA;border-radius:16px;
+  padding:10px 8px 10px 12px;margin-bottom:8px;
+}
+.rem-row.past{opacity:.5}
+.rem-ico{font-size:20px}
+.rem-time{font-size:17px;font-weight:800;letter-spacing:-.5px}
+.rem-text{flex:1;min-width:0;font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.rem-text small{display:block;font-size:11px;color:#8A9BBF;font-weight:600}
+.rem-form{background:#F5F7FA;border-radius:18px;padding:12px;margin-top:6px}
+.seg{display:flex;gap:6px;margin-bottom:8px}
+.seg button{
+  flex:1;border:2px solid transparent;background:#fff;border-radius:12px;padding:9px 4px;
+  font-size:13px;font-weight:700;color:#8A9BBF;cursor:pointer;font-family:inherit;
+}
+.seg button.on{border-color:#E8824A;color:#E8824A}
+.rem-form .row{display:flex;gap:8px;margin-bottom:8px}
+.rem-form .time-in{width:120px}
+.rem-form .text-in{flex:1;min-width:0}
+.rem-form .save-btn{padding:13px;font-size:15px}
+
+/* alarm overlay */
+.alarm-overlay{
+  position:fixed;inset:0;z-index:900;background:rgba(26,26,46,.92);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.alarm-overlay[hidden]{display:none}
+.alarm-card{
+  background:#fff;border-radius:32px;padding:28px 22px 22px;width:100%;max-width:360px;text-align:center;
+}
+.alarm-ico{font-size:56px;display:inline-block;animation:ring .5s ease-in-out infinite}
+@keyframes ring{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(14deg)}}
+.alarm-time{font-size:44px;font-weight:900;letter-spacing:-2px;margin-top:6px}
+.alarm-text{font-size:17px;font-weight:700;margin:6px 0 4px;overflow-wrap:anywhere}
+.alarm-more{font-size:12px;color:#8A9BBF;font-weight:600;min-height:16px;margin-bottom:16px}
+.alarm-btns{display:flex;flex-direction:column;gap:8px}
+.alarm-btns .save-btn.snooze{background:#EAEEF3;color:#1A1A2E;box-shadow:none}
+.alarm-btns .save-btn.stop{background:linear-gradient(135deg,#E8824A,#E05252);box-shadow:0 4px 18px rgba(224,82,82,.4)}
+
+/* upcoming list */
+.up-date{font-size:12px;font-weight:800;color:#8A9BBF;text-transform:uppercase;letter-spacing:.5px;margin:10px 2px 6px}
+.up-title{font-size:18px;font-weight:800;text-align:center;margin-bottom:10px}
+.toast.wrap{white-space:normal;max-width:88vw;text-align:center}
+.toast{z-index:1000}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ─────────────────────────────── -->
+  <header class="header">
+    <div class="header-top">
+      <div>
+        <div class="header-title">Мои смены</div>
+        <div class="header-sub">Нажми на день: смена, записи, напоминания</div>
+      </div>
+      <button class="bell-btn" id="bellBtn" aria-label="Напоминания">🔔<span class="bell-badge" id="bellBadge" hidden>0</span></button>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot bar"></div>Бар</div>
+      <div class="legend-item"><div class="legend-dot hookah"></div>Кальян</div>
+      <div class="legend-item"><div class="legend-dot both"></div>Бар + Кальян</div>
+      <div class="legend-item"><div class="legend-dot off"></div>Выходной</div>
+    </div>
+  </header>
+
+  <!-- ── Scrollable calendar ─────────────────── -->
+  <div class="scroll-area" id="scrollArea">
+
+    <!-- Year nav -->
+    <div class="year-nav">
+      <button class="year-btn" id="prevYear">‹</button>
+      <span class="year-label" id="yearLabel"></span>
+      <button class="year-btn" id="nextYear">›</button>
+    </div>
+
+    <div id="calendarRoot"></div>
+  </div>
+
+  <!-- ── Stats bar ───────────────────────────── -->
+  <div class="stats-bar">
+    <div class="stats-inner">
+      <div class="stat-pill bar-stat">
+        <div class="stat-val" id="statBar">0</div>
+        <div class="stat-lbl">Бар смен</div>
+      </div>
+      <div class="stat-pill hookah-stat">
+        <div class="stat-val" id="statHookah">0</div>
+        <div class="stat-lbl">Кальян смен</div>
+      </div>
+      <div class="stat-pill both-stat">
+        <div class="stat-val" id="statBoth">0</div>
+        <div class="stat-lbl">Двойных</div>
+      </div>
+      <div class="stat-pill off-stat">
+        <div class="stat-val" id="statOff">0</div>
+        <div class="stat-lbl">Выходных</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Modal ──────────────────────────────────── -->
+<div id="modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal-sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-date" id="sheetDate"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="shift">Смена</button>
+      <button class="tab" data-tab="notes">Записи</button>
+      <button class="tab" data-tab="rem" id="tabRem">Напоминания</button>
+    </div>
+
+    <div class="sheet-body">
+    <div class="panel" data-panel="shift">
+    <div class="shift-options">
+      <div class="shift-opt bar-opt" data-val="bar" role="button">
+        <div class="opt-circle bar">🍸</div>
+        <div class="opt-text">
+          <div class="opt-title">Барная смена</div>
+          <div class="opt-desc">Работа за баром</div>
+        </div>
+      </div>
+      <div class="shift-opt hookah-opt" data-val="hookah" role="button">
+        <div class="opt-circle hookah">💨</div>
+        <div class="opt-text">
+          <div class="opt-title">Кальянная смена</div>
+          <div class="opt-desc">Работа на кальяне</div>
+        </div>
+      </div>
+      <div class="shift-opt both-opt" data-val="both" role="button">
+        <div class="opt-circle both"></div>
+        <div class="opt-text">
+          <div class="opt-title">Бар + Кальян</div>
+          <div class="opt-desc">Две работы в один день</div>
+        </div>
+      </div>
+      <div class="shift-opt off-opt" data-val="off" role="button">
+        <div class="opt-circle off">🌙</div>
+        <div class="opt-text">
+          <div class="opt-title">Выходной</div>
+          <div class="opt-desc">День отдыха</div>
+        </div>
+      </div>
+      <div class="shift-opt clear-opt" data-val="clear" role="button">
+        <div class="opt-circle clear">✕</div>
+        <div class="opt-text">
+          <div class="opt-title">Очистить</div>
+          <div class="opt-desc">Убрать отметку</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn" disabled>Сохранить</button>
+    </div>
+    <div class="panel" data-panel="notes" hidden><div id="notesPanel"></div></div>
+    <div class="panel" data-panel="rem" hidden><div id="remPanel"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Upcoming reminders ─────────────────────── -->
+<div id="listModal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal-sheet" id="listSheet">
+    <div class="sheet-handle"></div>
+    <div class="up-title">🔔 Ближайшие напоминания</div>
+    <div class="sheet-body" id="upList"></div>
+  </div>
+</div>
+
+<!-- ── Alarm ring ─────────────────────────────── -->
+<div class="alarm-overlay" id="alarm" hidden>
+  <div class="alarm-card">
+    <div class="alarm-ico">⏰</div>
+    <div class="alarm-time" id="alarmTime"></div>
+    <div class="alarm-text" id="alarmText"></div>
+    <div class="alarm-more" id="alarmMore"></div>
+    <div class="alarm-btns">
+      <button class="save-btn stop" id="alarmStop">Выключить</button>
+      <button class="save-btn snooze" id="alarmSnooze">Отложить на 5 минут</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════ */
+const STORE_KEY = 'shift-cal-v2';
+let data = {};       // { "2025-07-04": "bar"|"hookah"|"both"|"off" }
+let viewYear = new Date().getFullYear();
+let activeKey = null;
+let pendingVal = null;
+
+function load() {
+  try { data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); }
+  catch { data = {}; }
+}
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+function toKey(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+/* ═══════════════════════════════════════════════
+   LOCALE
+═══════════════════════════════════════════════ */
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                   'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_RU_GEN = ['января','февраля','марта','апреля','мая','июня',
+                       'июля','августа','сентября','октября','ноября','декабря'];
+const WDAYS = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'];
+const WDAYS_FULL = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
+
+function mondayFirst(jsDay) { return (jsDay + 6) % 7; } // 0=Mon…6=Sun
+
+const today = new Date();
+const todayKey = toKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+/* ═══════════════════════════════════════════════
+   RENDER CALENDAR
+═══════════════════════════════════════════════ */
+function renderCalendar() {
+  document.getElementById('yearLabel').textContent = viewYear;
+  const root = document.getElementById('calendarRoot');
+  root.innerHTML = '';
+
+  for (let m = 0; m < 12; m++) {
+    const block = buildMonth(viewYear, m);
+    root.appendChild(block);
+  }
+  updateStats();
+  scrollToToday();
+}
+
+function buildMonth(y, m) {
+  const block = document.createElement('div');
+  block.className = 'month-block';
+  if (y === today.getFullYear() && m === today.getMonth())
+    block.id = 'currentMonth';
+
+  // Title
+  const title = document.createElement('div');
+  title.className = 'month-title';
+  title.textContent = MONTHS_RU[m];
+  block.appendChild(title);
+
+  // Weekday headers
+  const wrow = document.createElement('div');
+  wrow.className = 'wday-row';
+  WDAYS.forEach((d, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'wday-cell' + (i >= 5 ? ' weekend' : '');
+    cell.textContent = d;
+    wrow.appendChild(cell);
+  });
+  block.appendChild(wrow);
+
+  // Days grid
+  const grid = document.createElement('div');
+  grid.className = 'days-grid';
+
+  const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
+  const offset   = mondayFirst(firstDay);       // blanks before day 1
+  const total    = new Date(y, m+1, 0).getDate();
+
+  // Blank cells
+  for (let i = 0; i < offset; i++) {
+    const e = document.createElement('div');
+    e.className = 'day-cell empty';
+    grid.appendChild(e);
+  }
+
+  // Day cells
+  for (let d = 1; d <= total; d++) {
+    const key = toKey(y, m, d);
+    const val = data[key] || null;
+    const dow = mondayFirst(new Date(y, m, d).getDay()); // 0=Mon
+    const isWE = dow >= 5;
+    const isToday = key === todayKey;
+
+    const cell = document.createElement('div');
+    cell.className = 'day-cell';
+    cell.dataset.key = key;
+    cell.setAttribute('role','button');
+    cell.setAttribute('aria-label', `${d} ${MONTHS_RU_GEN[m]}`);
+
+    const circle = document.createElement('div');
+    circle.className = 'day-circle ' + (val || 'none');
+    if (isToday) {
+      if (!val) circle.classList.add('today-empty');
+      else      circle.classList.add('today-ring');
+    }
+
+    const num = document.createElement('span');
+    num.className = 'day-num';
+    num.textContent = d;
+    circle.appendChild(num);
+    if (hasContent(key)) circle.appendChild(makeMark());
+
+    cell.appendChild(circle);
+
+    cell.addEventListener('click', () => openModal(key, y, m, d));
+    grid.appendChild(cell);
+  }
+
+  block.appendChild(grid);
+  return block;
+}
+
+/* ═══════════════════════════════════════════════
+   STATS
+═══════════════════════════════════════════════ */
+function updateStats() {
+  // Count for current view year.
+  // Days marked "both" add +1 to bar AND +1 to hookah simultaneously.
+  let bar=0, hookah=0, both=0, off=0;
+  Object.entries(data).forEach(([k,v]) => {
+    if (!k.startsWith(String(viewYear))) return;
+    if (v==='bar')        { bar++;              }
+    else if(v==='hookah') {          hookah++;  }
+    else if(v==='both')   { bar++; hookah++; both++; }
+    else if(v==='off')    { off++;             }
+  });
+  document.getElementById('statBar').textContent    = bar;
+  document.getElementById('statHookah').textContent = hookah;
+  document.getElementById('statBoth').textContent   = both;
+  document.getElementById('statOff').textContent    = off;
+}
+
+/* ═══════════════════════════════════════════════
+   SCROLL TO TODAY
+═══════════════════════════════════════════════ */
+function scrollToToday() {
+  if (viewYear !== today.getFullYear()) return;
+  const el = document.getElementById('currentMonth');
+  if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth',block:'start'}), 80);
+}
+
+/* ═══════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════ */
+const modal   = document.getElementById('modal');
+const sheet   = document.getElementById('sheet');
+const saveBtn = document.getElementById('saveBtn');
+
+function openModal(key, y, m, d, tab) {
+  activeKey  = key;
+  pendingVal = data[key] || null;
+
+  // Date label
+  const dow  = mondayFirst(new Date(y, m, d).getDay());
+  document.getElementById('sheetDate').textContent =
+    `${WDAYS_FULL[dow].charAt(0).toUpperCase()+WDAYS_FULL[dow].slice(1)}, ${d} ${MONTHS_RU_GEN[m]} ${y}`;
+
+  // Pre-select current
+  selectOpt(pendingVal);
+  setTab(tab || 'shift');
+  unlockAudio();
+
+  modal.style.display = 'flex';
+  modal.classList.remove('closing');
+  sheet.classList.remove('closing');
+
+  // Haptic (if available)
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+
+function closeModal(cb) {
+  modal.classList.add('closing');
+  sheet.classList.add('closing');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    activeKey = null;
+    pendingVal = null;
+    refreshBadge();
+    if (cb) cb();
+  }, 220);
+}
+
+function selectOpt(val) {
+  pendingVal = val;
+  document.querySelectorAll('.shift-opt').forEach(o => {
+    o.classList.toggle('selected', o.dataset.val === val ||
+      (val === null && o.dataset.val === 'clear'));
+  });
+  saveBtn.disabled = false;
+}
+
+// Option clicks
+document.querySelectorAll('.shift-opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    const v = opt.dataset.val;
+    selectOpt(v === 'clear' ? null : v);
+    if (navigator.vibrate) navigator.vibrate(5);
+  });
+});
+
+// Save
+saveBtn.addEventListener('click', () => {
+  if (!activeKey) return;
+  if (pendingVal === null) {
+    delete data[activeKey];
+  } else {
+    data[activeKey] = pendingVal;
+  }
+  save();
+
+  // Update circle in DOM without full re-render
+  const cell = document.querySelector(`[data-key="${activeKey}"]`);
+  if (cell) {
+    const circle = cell.querySelector('.day-circle');
+    circle.className = 'day-circle ' + (pendingVal || 'none');
+    const isToday = activeKey === todayKey;
+    if (isToday) {
+      if (!pendingVal) circle.classList.add('today-empty');
+      else circle.classList.add('today-ring');
+    }
+  }
+
+  updateStats();
+  const savedVal = pendingVal;
+  closeModal(() => showToast(toastMsg(savedVal)));
+});
+
+// Backdrop close
+modal.addEventListener('click', e => {
+  if (e.target === modal) closeModal();
+});
+
+function toastMsg(v) {
+  if (!v)         return '✓ Отметка убрана';
+  if (v==='bar')    return '🍸 Барная смена сохранена';
+  if (v==='hookah') return '💨 Кальянная смена сохранена';
+  if (v==='both')   return '✓ Бар + Кальян сохранено';
+  if (v==='off')    return '🌙 Выходной сохранён';
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+let toastTimer = null;
+function showToast(msg, ms, wrap) {
+  let t = document.querySelector('.toast');
+  if (t) t.remove();
+  clearTimeout(toastTimer);
+  t = document.createElement('div');
+  t.className = 'toast' + (wrap ? ' wrap' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  toastTimer = setTimeout(() => {
+    t.style.transition = 'opacity .3s';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 300);
+  }, ms || 1800);
+}
+
+/* ═══════════════════════════════════════════════
+   YEAR NAVIGATION
+═══════════════════════════════════════════════ */
+document.getElementById('prevYear').addEventListener('click', () => {
+  viewYear--;
+  renderCalendar();
+  if (navigator.vibrate) navigator.vibrate(6);
+});
+document.getElementById('nextYear').addEventListener('click', () => {
+  viewYear++;
+  renderCalendar();
+  if (navigator.vibrate) navigator.vibrate(6);
+});
+
+/* ═══════════════════════════════════════════════
+   NEW: EXTRA DATA (notes, sections, reminders)
+═══════════════════════════════════════════════ */
+const EXTRA_KEY = 'shift-extra-v1';
+const DEFAULT_SECTIONS = [
+  {id:'note',  name:'Заметка дня',     icon:'📝', type:'text',  builtin:true},
+  {id:'sched', name:'Распорядок дня',  icon:'🕒', type:'list',  builtin:true},
+  {id:'todo',  name:'Дела',            icon:'✅', type:'check', builtin:true},
+  {id:'plans', name:'Планы',           icon:'🎯', type:'check', builtin:true},
+];
+const TYPE_ICON = {text:'📄', list:'🕒', check:'☑️'};
+let extra = { sections: DEFAULT_SECTIONS.map(s => ({...s})), days: {} };
+
+const $ = id => document.getElementById(id);
+function el(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function byTime(a, b) { return (a.time || '99:99').localeCompare(b.time || '99:99'); }
+
+function loadExtra() {
+  try {
+    const x = JSON.parse(localStorage.getItem(EXTRA_KEY) || 'null');
+    if (x && Array.isArray(x.sections) && x.days) extra = x;
+  } catch {}
+}
+function saveExtra() { localStorage.setItem(EXTRA_KEY, JSON.stringify(extra)); }
+function dayX(key, create) {
+  if (!extra.days[key]) {
+    if (!create) return null;
+    extra.days[key] = { s: {}, r: [] };
+  }
+  return extra.days[key];
+}
+function dueTs(key, t) {
+  const [y, m, d] = key.split('-').map(Number);
+  const [hh, mm] = t.split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+}
+
+/* ── day marks (dot under the number) ── */
+function hasContent(key) {
+  const d = extra.days[key];
+  if (!d) return false;
+  if (d.r && d.r.length) return true;
+  for (const sec of extra.sections) {
+    const v = d.s[sec.id];
+    if (!v) continue;
+    if (sec.type === 'text') { if (v.trim()) return true; }
+    else if (v.some(i => i.text && i.text.trim())) return true;
+  }
+  return false;
+}
+function makeMark() { return el('i', 'mark'); }
+function refreshMark(key) {
+  const cell = document.querySelector(`[data-key="${key}"]`);
+  if (!cell) return;
+  const circle = cell.querySelector('.day-circle');
+  const old = circle.querySelector('.mark');
+  if (old) old.remove();
+  if (hasContent(key)) circle.appendChild(makeMark());
+}
+function refreshAllMarks() {
+  document.querySelectorAll('.day-cell[data-key]').forEach(c => refreshMark(c.dataset.key));
+}
+
+/* ═══════════════════════════════════════════════
+   NEW: TABS
+═══════════════════════════════════════════════ */
+let curTab = 'shift';
+function setTab(t) {
+  curTab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('.panel').forEach(p => { p.hidden = p.dataset.panel !== t; });
+  if (t === 'notes') renderNotes();
+  if (t === 'rem') renderRem();
+  updateTabBadge();
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  setTab(b.dataset.tab);
+  if (navigator.vibrate) navigator.vibrate(5);
+}));
+function updateTabBadge() {
+  const d = activeKey && dayX(activeKey);
+  const n = d ? d.r.length : 0;
+  $('tabRem').textContent = 'Напоминания' + (n ? ' · ' + n : '');
+}
+
+/* ═══════════════════════════════════════════════
+   NEW: NOTES / SECTIONS
+═══════════════════════════════════════════════ */
+function renderNotes() {
+  const box = $('notesPanel');
+  box.innerHTML = '';
+  const key = activeKey;
+  if (!key) return;
+
+  extra.sections.forEach(sec => {
+    const card = el('div', 'sec-card');
+    card.dataset.sec = sec.id;
+    const head = el('div', 'sec-head');
+    head.appendChild(el('span', 'sec-title', sec.icon + ' ' + sec.name));
+    if (!sec.builtin) {
+      const del = el('button', 'icon-btn', '🗑');
+      del.setAttribute('aria-label', 'Удалить графу');
+      del.onclick = () => {
+        if (!confirm('Удалить графу «' + sec.name + '» со всех дней?')) return;
+        extra.sections = extra.sections.filter(s => s.id !== sec.id);
+        Object.values(extra.days).forEach(d => { delete d.s[sec.id]; });
+        saveExtra(); renderNotes(); refreshAllMarks();
+      };
+      head.appendChild(del);
+    }
+    card.appendChild(head);
+
+    const dd = dayX(key);
+
+    if (sec.type === 'text') {
+      const ta = el('textarea', 'sec-text');
+      ta.rows = 3;
+      ta.placeholder = 'Напиши заметку…';
+      ta.value = (dd && dd.s[sec.id]) || '';
+      ta.addEventListener('input', () => {
+        dayX(key, true).s[sec.id] = ta.value;
+        saveExtra(); refreshMark(key);
+      });
+      card.appendChild(ta);
+    } else {
+      const items = (dd && dd.s[sec.id]) || [];
+      const view = sec.type === 'list' ? items.slice().sort(byTime) : items;
+      view.forEach(it => {
+        const row = el('div', 'item-row' + (it.done ? ' done' : ''));
+        if (sec.type === 'check') {
+          const cb = el('input');
+          cb.type = 'checkbox';
+          cb.checked = !!it.done;
+          cb.onchange = () => { it.done = cb.checked; saveExtra(); row.classList.toggle('done', cb.checked); };
+          row.appendChild(cb);
+        } else {
+          const ti = el('input', 'time-in');
+          ti.type = 'time';
+          ti.value = it.time || '';
+          ti.onchange = () => { it.time = ti.value; saveExtra(); renderNotes(); };
+          row.appendChild(ti);
+        }
+        const tx = el('input', 'text-in');
+        tx.type = 'text';
+        tx.value = it.text || '';
+        tx.placeholder = sec.type === 'list' ? 'Что по плану…' : 'Что нужно сделать…';
+        tx.addEventListener('input', () => { it.text = tx.value; saveExtra(); refreshMark(key); });
+        row.appendChild(tx);
+        const x = el('button', 'icon-btn', '✕');
+        x.setAttribute('aria-label', 'Удалить');
+        x.onclick = () => {
+          items.splice(items.indexOf(it), 1);
+          saveExtra(); renderNotes(); refreshMark(key);
+        };
+        row.appendChild(x);
+        card.appendChild(row);
+      });
+      const add = el('button', 'add-link', '＋ Добавить');
+      add.onclick = () => {
+        const d = dayX(key, true);
+        if (!d.s[sec.id]) d.s[sec.id] = [];
+        d.s[sec.id].push({id: uid(), text: '', time: '', done: false});
+        saveExtra(); renderNotes();
+        const ins = box.querySelectorAll(`[data-sec="${sec.id}"] .text-in`);
+        if (ins.length) ins[ins.length - 1].focus();
+      };
+      card.appendChild(add);
+    }
+    box.appendChild(card);
+  });
+
+  /* new section form */
+  const ns = el('div', 'new-sec');
+  const nsBtn = el('button', 'add-link', '＋ Новая графа');
+  ns.appendChild(nsBtn);
+  const form = el('div');
+  form.hidden = true;
+  const nameIn = el('input', 'new-in');
+  nameIn.type = 'text';
+  nameIn.placeholder = 'Название (например: Покупки)';
+  nameIn.maxLength = 40;
+  const row = el('div', 'row');
+  const sel = el('select', 'new-in');
+  [['text', 'Текст'], ['list', 'Список со временем'], ['check', 'Чек-лист']].forEach(([v, t]) => {
+    const o = el('option', null, t); o.value = v; sel.appendChild(o);
+  });
+  const ok = el('button', 'mini-btn', 'Создать');
+  ok.onclick = () => {
+    const name = nameIn.value.trim();
+    if (!name) { nameIn.focus(); return; }
+    extra.sections.push({id: 'c' + uid(), name, icon: TYPE_ICON[sel.value], type: sel.value, builtin: false});
+    saveExtra(); renderNotes();
+    showToast('✓ Графа «' + name + '» добавлена');
+  };
+  row.appendChild(sel); row.appendChild(ok);
+  form.appendChild(nameIn); form.appendChild(row);
+  ns.appendChild(form);
+  nsBtn.onclick = () => { form.hidden = !form.hidden; if (!form.hidden) nameIn.focus(); };
+  box.appendChild(ns);
+}
+
+/* ═══════════════════════════════════════════════
+   NEW: REMINDERS (several per day)
+═══════════════════════════════════════════════ */
+let remKind = 'alarm';
+
+function notifState() {
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission; // granted | denied | default
+}
+async function ensureNotifPermission() {
+  if (notifState() === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+  }
+  if (curTab === 'rem' && activeKey) renderRem();
+}
+
+function defaultTime(key) {
+  if (key === todayKey) {
+    const n = new Date();
+    const h = n.getHours() + 1;
+    return h > 23 ? '23:59' : String(h).padStart(2, '0') + ':00';
+  }
+  return '09:00';
+}
+
+function renderRem() {
+  const box = $('remPanel');
+  box.innerHTML = '';
+  const key = activeKey;
+  if (!key) return;
+  const dd = dayX(key);
+  const list = ((dd && dd.r) || []).slice().sort((a, b) => a.t.localeCompare(b.t));
+
+  /* notification hint */
+  const hint = el('div', 'hint');
+  const st = notifState();
+  if (st === 'granted') hint.textContent = '✓ Системные уведомления включены. Будильник звонит, пока приложение открыто.';
+  else if (st === 'denied') hint.textContent = 'Уведомления запрещены в настройках телефона/браузера. Сигнал сработает только при открытом приложении.';
+  else if (st === 'default') {
+    hint.appendChild(document.createTextNode('Чтобы приходили системные уведомления — '));
+    const b = el('button', null, 'разреши их');
+    b.onclick = ensureNotifPermission;
+    hint.appendChild(b);
+    hint.appendChild(document.createTextNode('. Будильник звонит, пока приложение открыто.'));
+  } else hint.textContent = 'Системные уведомления здесь недоступны. Сигнал сработает при открытом приложении (на iPhone — добавь сайт на экран «Домой»).';
+  box.appendChild(hint);
+
+  if (!list.length) box.appendChild(el('div', 'empty', 'На этот день напоминаний нет'));
+
+  list.forEach(r => {
+    const done = r.fired && !r.snoozeUntil;
+    const row = el('div', 'rem-row' + (done ? ' past' : ''));
+    row.appendChild(el('span', 'rem-ico', r.kind === 'alarm' ? '⏰' : '🔔'));
+    row.appendChild(el('span', 'rem-time', r.t));
+    const tx = el('span', 'rem-text', r.text);
+    if (done) tx.appendChild(el('small', null, 'сработало'));
+    else if (r.snoozeUntil) {
+      const s = new Date(r.snoozeUntil);
+      tx.appendChild(el('small', null, 'отложено до ' + String(s.getHours()).padStart(2,'0') + ':' + String(s.getMinutes()).padStart(2,'0')));
+    }
+    row.appendChild(tx);
+    const x = el('button', 'icon-btn', '✕');
+    x.setAttribute('aria-label', 'Удалить напоминание');
+    x.onclick = () => {
+      const d = dayX(key);
+      d.r = d.r.filter(i => i.id !== r.id);
+      saveExtra(); renderRem(); updateTabBadge(); refreshMark(key); refreshBadge();
+    };
+    row.appendChild(x);
+    box.appendChild(row);
+  });
+
+  /* add form */
+  const form = el('div', 'rem-form');
+  const seg = el('div', 'seg');
+  [['alarm', '⏰ Будильник'], ['notify', '🔔 Уведомление']].forEach(([k, t]) => {
+    const b = el('button', remKind === k ? 'on' : '', t);
+    b.onclick = () => { remKind = k; seg.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); };
+    seg.appendChild(b);
+  });
+  form.appendChild(seg);
+  const row = el('div', 'row');
+  const ti = el('input', 'time-in');
+  ti.type = 'time';
+  ti.value = defaultTime(key);
+  const tx = el('input', 'text-in');
+  tx.type = 'text';
+  tx.placeholder = 'О чём напомнить?';
+  tx.maxLength = 80;
+  row.appendChild(ti); row.appendChild(tx);
+  form.appendChild(row);
+  const btn = el('button', 'save-btn', 'Добавить напоминание');
+  btn.onclick = () => {
+    if (!ti.value) { ti.focus(); return; }
+    if (dueTs(key, ti.value) <= Date.now()) { showToast('⏱ Это время уже прошло', 2200); return; }
+    const d = dayX(key, true);
+    d.r.push({id: uid(), t: ti.value, text: tx.value.trim() || 'Напоминание', kind: remKind, fired: false, snoozeUntil: null});
+    saveExtra();
+    ensureNotifPermission();
+    refreshMark(key); refreshBadge(); updateTabBadge();
+    if (navigator.vibrate) navigator.vibrate(8);
+    showToast((remKind === 'alarm' ? '⏰ Будильник на ' : '🔔 Напоминание на ') + ti.value);
+    renderRem();
+  };
+  form.appendChild(btn);
+  box.appendChild(form);
+}
+
+/* ═══════════════════════════════════════════════
+   NEW: ALARM ENGINE
+═══════════════════════════════════════════════ */
+let ringing = [];       // [{key,id}]
+let ringTimer = null, ringStop = null;
+let audioCtx = null;
+
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch {}
+}
+['pointerdown', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, {passive: true}));
+
+function beepOnce(at, freq) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.25, at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(at); o.stop(at + 0.2);
+}
+function pattern(loud) {
+  if (audioCtx) {
+    const t = audioCtx.currentTime + 0.02;
+    beepOnce(t, 880);
+    if (loud) { beepOnce(t + 0.28, 880); beepOnce(t + 0.56, 880); }
+  }
+  if (navigator.vibrate) navigator.vibrate(loud ? [300, 150, 300, 150, 300] : [200]);
+}
+function startRing() {
+  if (ringTimer) return;
+  unlockAudio();
+  pattern(true);
+  ringTimer = setInterval(() => pattern(true), 1500);
+  ringStop = setTimeout(stopSound, 120000); // stop sound after 2 min
+}
+function stopSound() {
+  clearInterval(ringTimer); clearTimeout(ringStop);
+  ringTimer = ringStop = null;
+  if (navigator.vibrate) navigator.vibrate(0);
+}
+
+function findRem(key, id) {
+  const d = dayX(key);
+  return d ? d.r.find(r => r.id === id) : null;
+}
+function showRing() {
+  const box = $('alarm');
+  if (!ringing.length) { box.hidden = true; stopSound(); return; }
+  const cur = ringing[0];
+  const r = findRem(cur.key, cur.id);
+  if (!r) { ringing.shift(); showRing(); return; }
+  $('alarmTime').textContent = r.t;
+  $('alarmText').textContent = r.text;
+  $('alarmMore').textContent = ringing.length > 1 ? 'Ещё будильников: ' + (ringing.length - 1) : '';
+  box.hidden = false;
+  startRing();
+}
+$('alarmStop').addEventListener('click', () => {
+  ringing.shift();
+  showRing();
+  if (curTab === 'rem' && activeKey) renderRem();
+  refreshBadge();
+});
+$('alarmSnooze').addEventListener('click', () => {
+  const cur = ringing.shift();
+  if (cur) {
+    const r = findRem(cur.key, cur.id);
+    if (r) { r.fired = false; r.snoozeUntil = Date.now() + 5 * 60000; saveExtra(); }
+  }
+  showRing();
+  if (curTab === 'rem' && activeKey) renderRem();
+  refreshBadge();
+  showToast('😴 Отложено на 5 минут');
+});
+
+function sysNotify(title, body, tag) {
+  if (notifState() !== 'granted') return;
+  const opts = {body, tag, icon: undefined, requireInteraction: true, vibrate: [200, 100, 200]};
+  const fallback = () => { try { new Notification(title, opts); } catch {} };
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg && reg.showNotification) reg.showNotification(title, opts).catch(fallback);
+      else fallback();
+    }).catch(fallback);
+  } else fallback();
+}
+
+function fireReminder(key, r, lateMs) {
+  r.fired = true; r.snoozeUntil = null;
+  saveExtra();
+  const late = lateMs > 5 * 60000;
+  const title = (r.kind === 'alarm' ? '⏰ ' : '🔔 ') + r.t + (late ? ' · пропущено' : '');
+  sysNotify(title, r.text, r.id);
+  if (r.kind === 'alarm' && !late) {
+    ringing.push({key, id: r.id});
+    showRing();
+  } else {
+    pattern(false);
+    showToast(title + ' — ' + r.text, 7000, true);
+  }
+  if (curTab === 'rem' && activeKey) renderRem();
+  refreshBadge();
+}
+
+function tick() {
+  const now = Date.now();
+  let changed = false;
+  for (const [key, d] of Object.entries(extra.days)) {
+    if (!d.r) continue;
+    for (const r of d.r) {
+      if (r.fired) continue;
+      const target = r.snoozeUntil || dueTs(key, r.t);
+      if (now < target) continue;
+      if (now - target > 6 * 3600000) { r.fired = true; r.snoozeUntil = null; changed = true; continue; }
+      fireReminder(key, r, now - target);
+    }
+  }
+  if (changed) { saveExtra(); refreshBadge(); }
+}
+setInterval(tick, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+window.addEventListener('focus', tick);
+
+/* ═══════════════════════════════════════════════
+   NEW: UPCOMING LIST + BELL BADGE
+═══════════════════════════════════════════════ */
+function pendingList() {
+  const out = [];
+  for (const [key, d] of Object.entries(extra.days)) {
+    (d.r || []).forEach(r => {
+      if (r.fired) return;
+      out.push({key, r, ts: r.snoozeUntil || dueTs(key, r.t)});
+    });
+  }
+  return out.sort((a, b) => a.ts - b.ts);
+}
+function refreshBadge() {
+  const n = pendingList().filter(p => p.key === todayKey).length;
+  const b = $('bellBadge');
+  b.textContent = n;
+  b.hidden = n === 0;
+}
+
+const listModal = $('listModal');
+function openUpcoming() {
+  const box = $('upList');
+  box.innerHTML = '';
+  const items = pendingList();
+  if (!items.length) box.appendChild(el('div', 'empty', 'Нет предстоящих напоминаний'));
+  let lastKey = null;
+  items.forEach(({key, r}) => {
+    const [y, m, d] = key.split('-').map(Number);
+    if (key !== lastKey) {
+      lastKey = key;
+      const dow = mondayFirst(new Date(y, m - 1, d).getDay());
+      const lbl = key === todayKey ? 'Сегодня' : `${WDAYS[dow]}, ${d} ${MONTHS_RU_GEN[m - 1]}`;
+      box.appendChild(el('div', 'up-date', lbl));
+    }
+    const row = el('div', 'rem-row');
+    row.style.cursor = 'pointer';
+    row.appendChild(el('span', 'rem-ico', r.kind === 'alarm' ? '⏰' : '🔔'));
+    row.appendChild(el('span', 'rem-time', r.t));
+    row.appendChild(el('span', 'rem-text', r.text));
+    row.onclick = () => closeList(() => openModal(key, y, m - 1, d, 'rem'));
+    box.appendChild(row);
+  });
+  listModal.style.display = 'flex';
+  listModal.classList.remove('closing');
+  $('listSheet').classList.remove('closing');
+}
+function closeList(cb) {
+  listModal.classList.add('closing');
+  $('listSheet').classList.add('closing');
+  setTimeout(() => { listModal.style.display = 'none'; if (cb) cb(); }, 220);
+}
+listModal.addEventListener('click', e => { if (e.target === listModal) closeList(); });
+$('bellBtn').addEventListener('click', () => {
+  unlockAudio();
+  openUpcoming();
+  if (navigator.vibrate) navigator.vibrate(6);
+});
+
+/* ═══════════════════════════════════════════════
+   SERVICE WORKER
+═══════════════════════════════════════════════ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+load();
+loadExtra();
+renderCalendar();
+refreshBadge();
+tick();
+</script>
+</body>
+</html>
